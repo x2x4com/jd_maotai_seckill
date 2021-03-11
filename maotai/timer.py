@@ -5,16 +5,15 @@ import json
 
 from datetime import datetime
 from maotai.jd_logger import logger
-from maotai.config import global_config
 
 
 class Timer(object):
-    def __init__(self, sleep_interval=0.5):
+    def __init__(self, last_purchase_time, buy_time, sleep_interval=0.5):
         # '2018-09-28 22:45:50.000'
         # buy_time = 2020-12-22 09:59:59.500
         localtime = time.localtime(time.time())
-        buy_time_everyday = global_config.getRaw('config', 'buy_time').__str__()
-        last_purchase_time_everyday = global_config.getRaw('config', 'last_purchase_time').__str__()
+        buy_time_everyday = buy_time
+        last_purchase_time_everyday = last_purchase_time
 
         # 最后购买时间
         last_purchase_time = datetime.strptime(

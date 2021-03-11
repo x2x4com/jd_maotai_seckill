@@ -4,7 +4,7 @@ import requests
 import os
 import time
 
-from maotai.config import global_config
+from maotai.config import Config
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
@@ -77,15 +77,15 @@ def wait_some_time():
     time.sleep(random.randint(100, 300) / 1000)
 
 
-def send_wechat(message):
+def send_wechat(message, sckey, ua):
     """推送信息到微信"""
-    url = 'http://sc.ftqq.com/{}.send'.format(global_config.getRaw('messenger', 'sckey'))
+    url = 'http://sc.ftqq.com/{}.send'.format(sckey)
     payload = {
         "text": '抢购结果',
         "desp": message
     }
     headers = {
-        'User-Agent': global_config.getRaw('config', 'DEFAULT_USER_AGENT')
+        'User-Agent': ua
     }
     requests.get(url, params=payload, headers=headers)
 

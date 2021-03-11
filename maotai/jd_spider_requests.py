@@ -11,7 +11,7 @@ from lxml import etree
 from error.exception import SKException
 from maotai.jd_logger import logger
 from maotai.timer import Timer
-from maotai.config import global_config
+from maotai.config import Config
 from concurrent.futures import ProcessPoolExecutor
 from helper.jd_helper import (
     parse_json,
@@ -28,9 +28,10 @@ class SpiderSession:
     Session相关操作
     """
 
-    def __init__(self):
+    def __init__(self, config):
         self.cookies_dir_path = "./cookies/"
-        self.user_agent = global_config.getRaw('config', 'DEFAULT_USER_AGENT')
+        self._config = config
+        self.user_agent = self._config.getRaw('config', 'DEFAULT_USER_AGENT')
 
         self.session = self._init_session()
 
@@ -266,19 +267,24 @@ class QrLogin:
 
 
 class JdSeckill(object):
-    def __init__(self):
-        self.spider_session = SpiderSession()
+    def __init__(self, config='config.ini'):
+        self._config = Config(config_file=config)
+
+        self.spider_session = SpiderSession(self._config)
         self.spider_session.load_cookies_from_local()
 
         self.qrlogin = QrLogin(self.spider_session)
 
         # 初始化信息
-        self.sku_id = global_config.getRaw('config', 'sku_id')
-        self.seckill_num = global_config.getRaw('config', 'seckill_num')
+        self.sku_id = self._config.getRaw('config', 'sku_id')
+        self.seckill_num = self._config.getRaw('config', 'seckill_num')
         self.seckill_init_info = dict()
         self.seckill_url = dict()
         self.seckill_order_data = dict()
-        self.timers = Timer()
+        self.timers = Timer(
+            self._config.getRaw('config', 'last_purchase_time').__str__(),
+            self._config.getRaw('config', 'buy_time').__str__()
+        )
 
         self.session = self.spider_session.get_session()
         self.user_agent = self.spider_session.user_agent
@@ -386,9 +392,13 @@ class JdSeckill(object):
             try:
                 self.session.get(url='https:' + reserve_url)
                 logger.info('预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约')
-                if global_config.getRaw('messenger', 'enable') == 'true':
+                if self._config.getRaw('messenger', 'enable') == 'true':
                     success_message = "预约成功，已获得抢购资格 / 您已成功预约过了，无需重复预约"
-                    send_wechat(success_message)
+                    send_wechat(
+                        success_message,
+                        self._config.getRaw('messenger', 'sckey'),
+                        self._config.getRaw('config', 'DEFAULT_USER_AGENT')
+                    )
                 break
             except Exception as e:
                 logger.error('预约失败正在重试...')
@@ -421,7 +431,7 @@ class JdSeckill(object):
 
     def get_sku_title(self):
         """获取商品名称"""
-        url = 'https://item.jd.com/{}.html'.format(global_config.getRaw('config', 'sku_id'))
+        url = 'https://item.jd.com/{}.html'.format(self._config.getRaw('config', 'sku_id'))
         resp = self.session.get(url).content
         x_data = etree.HTML(resp)
         sku_title = x_data.xpath('/html/head/title/text()')
@@ -555,14 +565,14 @@ class JdSeckill(object):
             'invoicePhone': invoice_info.get('invoicePhone', ''),
             'invoicePhoneKey': invoice_info.get('invoicePhoneKey', ''),
             'invoice': 'true' if invoice_info else 'false',
-            'password': global_config.get('account', 'payment_pwd'),
+            'password': self._config.get('account', 'payment_pwd'),
             'codTimeType': 3,
             'paymentType': 4,
             'areaCode': '',
             'overseas': 0,
             'phone': '',
-            'eid': global_config.getRaw('config', 'eid'),
-            'fp': global_config.getRaw('config', 'fp'),
+            'eid': self._config.getRaw('config', 'eid'),
+            'fp': self._config.getRaw('config', 'fp'),
             'token': token,
             'pru': ''
         }
@@ -614,13 +624,21 @@ class JdSeckill(object):
             total_money = resp_json.get('totalMoney')
             pay_url = 'https:' + resp_json.get('pcUrl')
             logger.info('抢购成功，订单号:{}, 总价:{}, 电脑端付款链接:{}'.format(order_id, total_money, pay_url))
-            if global_config.getRaw('messenger', 'enable') == 'true':
+            if self._config.getRaw('messenger', 'enable') == 'true':
                 success_message = "抢购成功，订单号:{}, 总价:{}, 电脑端付款链接:{}".format(order_id, total_money, pay_url)
-                send_wechat(success_message)
+                send_wechat(
+                    success_message,
+                    self._config.getRaw('messenger', 'sckey'),
+                    self._config.getRaw('config', 'DEFAULT_USER_AGENT')
+                )
             return True
         else:
             logger.info('抢购失败，返回信息:{}'.format(resp_json))
-            if global_config.getRaw('messenger', 'enable') == 'true':
+            if self._config.getRaw('messenger', 'enable') == 'true':
                 error_message = '抢购失败，返回信息:{}'.format(resp_json)
-                send_wechat(error_message)
+                send_wechat(
+                    error_message,
+                    self._config.getRaw('messenger', 'sckey'),
+                    self._config.getRaw('config', 'DEFAULT_USER_AGENT')
+                )
             return False
